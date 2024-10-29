@@ -1,0 +1,12 @@
+! namelist data file
+&input
+ dt=0.2
+ dr=0.05
+ dx1=0.4
+ fpot='pes.txt'
+ finit='./init0'
+ tf=1000.0
+ fsta=1
+ rescal=1
+/
+

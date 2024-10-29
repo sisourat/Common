@@ -57,6 +57,8 @@ double precision :: newr, newx1
 
 integer :: i, j, k, ista
 
+integer :: nhop = 0
+
 ! Reads the data
 
 inquire( file=trim(fpot), exist=file_e )
@@ -74,9 +76,10 @@ open(unit=10,file=trim(fpot))
 allocate(r(nr),x1(nx1))
 allocate(energy(nsta,nr,nx1))
 !
-do i = 1, nx1
-  do j = 1, nr
-    read(10,*)x1(i),r(j),(energy(ista,i,j),ista=1,nsta)
+do i = 1, nr
+  do j = 1, nx1
+    read(10,*)r(i),x1(j),(energy(ista,i,j),ista=1,nsta)
+!    write(*,*)r(i),x1(j),(energy(ista,i,j),ista=1,nsta)
   enddo
 enddo 
 close(10)
@@ -114,17 +117,19 @@ allocate(val(nsta),valdrp(nsta),valdrm(nsta))
 
 do ista = 1, nsta
  iflag=0
- !!! 2ink call db3ink(r2,nr2,r1,nr1,the,nthe,energy(ista,:,:,:),kr1,kr2,kt,iknot,tr2(ista,:),tr1(ista,:),tthe(ista,:),energy(ista,:,:,:),iflag)
+ call db2ink(r,nr,x1,nx1,energy(ista,:,:),kr,kx1,iknot,tr(ista,:),tx1(ista,:),energy(ista,:,:),iflag)
+
  if(iflag/=0) then
-  write(*,*)"error in db3ink", iflag
+  write(*,*)"error in db2ink", iflag
   return
  endif
 enddo
 
 ! landau-zenner surf. hopp. stuff
+newr=q(1)
+newx1=q(2)
 do ista=1,nsta
- !!! 2val  call db3val(newr2,newr1,newthe,idr1,idr2,idthe,tr2(ista,:),tr1(ista,:),tthe(ista,:),nr2,nr1,nthe,kr1,kr2,kt,energy(ista,:,:,:),val(ista),iflag,&
- !!!! inbvx,inbvy,inbvz,iloy,iloz)
+ call db2val(newr,newx1,idr,idx1,tr(ista,:),tx1(ista,:),nr,nx1,kr,kx1,energy(ista,:,:),val(ista),iflag,inbvx,inbvy,iloy)
  if(iflag/=0) then
   write(*,*)"error in db2val at time (1)",time,newr,newx1
   stop
@@ -150,15 +155,20 @@ do while(time<tf)
  epair(:)=0d0
  
 ! computes the energy at position at time t
+ newr=qt(1)
+ newx1=qt(2)
  do ista=1,nsta
- !!! 2val   call db3val(newr2,newr1,newthe,idr1,idr2,idthe,tr2(ista,:),tr1(ista,:),tthe(ista,:),nr2,nr1,nthe,kr1,kr2,kt,energy(ista,:,:,:),val(ista),iflag,& 
- !!!inbvx,inbvy,inbvz,iloy,iloz)
+ call db2val(newr,newx1,idr,idx1,tr(ista,:),tx1(ista,:),nr,nx1,kr,kx1,energy(ista,:,:),val(ista),iflag,inbvx,inbvy,iloy)
  if(iflag/=0) then
-  write(*,*)"error in db2val at time (2)",time,newr, newx1
+  write(*,*)"error in db2val at time (2)",time, newr, newx1, ista
   stop
  endif
  enddo
- write(200,'(5(f20.10,1X),i3,10(f20.10,1X))')time*0.024,newr,newx1,val(fsta),fsta,val(:)
+ write(200,'(4(f20.10,1X),i3,10(f20.10,1X))')time*0.024,newr,newx1,val(fsta),fsta,val(:)
+ write(*,*)time*0.024,qt(2),val(fsta),(qt(2)-qm(2))/dt,fsta
+ if(qt(2)>200.0) then
+     exit
+ endif
 
 ! apply LZ surface hopping here
 do ista=1,nsta
@@ -178,7 +188,7 @@ enddo
              vunscal = (qt(i)-qm(i))/dt
              ekin1 = ekin1 + 0.5d0*mass(i)*vunscal**2
         enddo
-
+    
       if(plz>rand_uniform(0d0,1d0) .and. epair(ista)<ekin1) then
         write(*,*)"HOP", ista
         if(rescal==1) then
@@ -186,12 +196,14 @@ enddo
           write(*,*)"Egap,Ekin",egap,ekin1
           ekin1 = 0d0
           ekin2 = 0d0
-          scal = egap/9d0 ! the velocities scaled evenly (i.e. energy gap is spread over all coord. 9 comes form 3N dofs)
-          do i = 1, ndof
+          scal = egap ! only the electron velocity is rescaled
+          do i = 2, ndof
              vunscal = (qt(i)-qm(i))/dt
+             write(*,*)vunscal
              ekin1 = ekin1 + 0.5d0*mass(i)*vunscal**2
              if(1d0+2d0*scal/(mass(i)*vunscal**2)>0d0) then
                 vscal = vunscal*sqrt(1d0+2d0*scal/(mass(i)*vunscal**2))
+             write(*,*)vscal,'a'
                 qt(i) = qt(i) + (vscal-vunscal)*dt
              else !! in this case the evenly distributed correction is larger than the veloc. in this coord=> we put the velocity to zero (energy is not strictly conserved)
                 qt(i) = qm(i)
@@ -216,22 +228,23 @@ enddo
 ! computes the new position
  
  do i = 1, ndof
-    qdr(:) = qt(:) 
-    qdr(i) = qt(i) + ddr(i)
- do ista=1,nsta
- !!   call db3val(newr2,newr1,newthe,idr1,idr2,idthe,tr2(ista,:),tr1(ista,:),tthe(ista,:),nr2,nr1,nthe,kr1,kr2,kt,energy(ista,:,:,:),valdrp(ista),iflag,& 
- !!   inbvx,inbvy,inbvz,iloy,iloz)
- enddo
+   qdr(:) = qt(:) 
+   qdr(i) = qt(i) + ddr(i)
+   newr=qdr(1)
+   newx1=qdr(2)
+   do ista=1,nsta
+    call db2val(newr,newx1,idr,idx1,tr(ista,:),tx1(ista,:),nr,nx1,kr,kx1,energy(ista,:,:),valdrp(ista),iflag,inbvx,inbvy,iloy)
+   enddo
 
-    qdr(:) = qt(:) 
-    qdr(i) = q(i) - ddr(i)
- do ista=1,nsta
- !!   call db3val(newr2,newr1,newthe,idr1,idr2,idthe,tr2(ista,:),tr1(ista,:),tthe(ista,:),nr2,nr1,nthe,kr1,kr2,kt,energy(ista,:,:,:),valdrm(ista),iflag,& 
- !!   inbvx,inbvy,inbvz,iloy,iloz)
- enddo
+   qdr(:) = qt(:) 
+   qdr(i) = qt(i) - ddr(i)
+   newr=qdr(1)
+   newx1=qdr(2)
+   do ista=1,nsta
+    call db2val(newr,newx1,idr,idx1,tr(ista,:),tx1(ista,:),nr,nx1,kr,kx1,energy(ista,:,:),valdrm(ista),iflag,inbvx,inbvy,iloy)
+   enddo
 
     grade = 0.5*( (valdrp(fsta)-val(fsta))/ddr(i) - (valdrm(fsta)-val(fsta))/ddr(i) )
-
     qnew(i) = 2*qt(i) - qm(i) - grade*dt**2/mass(i) 
 
  enddo

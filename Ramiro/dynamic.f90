@@ -52,7 +52,6 @@ write(*,'(A)')"!!!  Enter R first !!!"
    read(10,*)mass(i),q(i),p(i)
    v(i) = p(i) / mass(i)
    write(100,'(6(f20.15,1X))')mass(i),q(i),p(i)
-   mass(i)=mass(i)*1836.15d0
  enddo
  close(10)
  write(100,*)
