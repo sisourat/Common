@@ -5,7 +5,7 @@ use RDistributions
 implicit none
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Nico 24.05.2016 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Nico 29.10.2024 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! performs the dynamics until tf                        !!
 ! uses Verlet algorithm                                 !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -86,7 +86,7 @@ close(10)
 write(*,'(A)')'Reading PESs done '
 write(*,*)
 write(*,'(A)')'Lets start the dynamics'
-!!energy(:,:,:,:)=0d0
+!!energy(:,:,:)=0d0
 
 allocate(epair(nsta),epair_t1(nsta),d_epair(nsta),d_epair_t1(nsta),d2_epair(nsta))
 epair(:) = 0d0
@@ -147,6 +147,7 @@ do i = 1, ndof
 enddo
 
 time=ti
+call init_random_seed()
 do while(time<tf)
 
 ! landau-zenner surf. hopp. stuff
@@ -164,9 +165,9 @@ do while(time<tf)
   stop
  endif
  enddo
- write(200,'(4(f20.10,1X),i3,10(f20.10,1X))')time*0.024,newr,newx1,val(fsta),fsta,val(:)
- write(*,*)time*0.024,qt(2),val(fsta),(qt(2)-qm(2))/dt,fsta
- if(qt(2)>200.0) then
+ write(200,'(4(f20.10,1X),i3,10(f20.10,1X))')time*0.024,newr,newx1,val(fsta),fsta,v(2)
+ !write(*,*)time*0.024,qt(2),val(fsta),(qt(2)-qm(2))/dt,fsta
+ if(qt(2)>100.0 .or. qt(2)<-110.0) then
      exit
  endif
 
@@ -245,6 +246,7 @@ enddo
    enddo
 
     grade = 0.5*( (valdrp(fsta)-val(fsta))/ddr(i) - (valdrm(fsta)-val(fsta))/ddr(i) )
+    !!if(i==1) grade = 0d0 ! fixed nuclei approx. 
     qnew(i) = 2*qt(i) - qm(i) - grade*dt**2/mass(i) 
 
  enddo

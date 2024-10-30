@@ -62,7 +62,7 @@ write(*,'(A)')"!!!  Enter R first !!!"
  ti = 0d0
  call dyn(ndof,mass,q,v,ti,tf,fpot,fsta,dt,dr,dx1,rescal)
 
-  write(100,*)fsta
+  write(101,*)fsta,0.5*v(2)**2,v(2)
   write(100,'(6(f20.10,1X))')(q(i),v(i),i=1, ndof)
   write(100,*)
 
